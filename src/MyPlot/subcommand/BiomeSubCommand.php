@@ -2,8 +2,19 @@
 declare(strict_types=1);
 namespace MyPlot\subcommand;
 
+use CortexPE\Commando\args\StringEnumArgument;
 use pocketmine\command\CommandSender;
 use pocketmine\level\biome\Biome;
+use pocketmine\level\biome\DesertBiome;
+use pocketmine\level\biome\ForestBiome;
+use pocketmine\level\biome\IcePlainsBiome;
+use pocketmine\level\biome\MountainsBiome;
+use pocketmine\level\biome\OceanBiome;
+use pocketmine\level\biome\PlainBiome;
+use pocketmine\level\biome\RiverBiome;
+use pocketmine\level\biome\SmallMountainsBiome;
+use pocketmine\level\biome\SwampBiome;
+use pocketmine\level\biome\TaigaBiome;
 use pocketmine\Player;
 use pocketmine\utils\TextFormat;
 
@@ -74,6 +85,35 @@ class BiomeSubCommand extends SubCommand
 	 * This is where all the arguments, permissions, sub-commands, etc would be registered
 	 */
 	protected function prepare() : void {
+		$this->registerArgument(0, new class("biome", false) extends StringEnumArgument {
+			protected const VALUES = [
+				"OCEAN" => OceanBiome::class,
+				"PLAINS" => PlainBiome::class,
+				"DESERT" => DesertBiome::class,
+				"MOUNTAINS" => MountainsBiome::class,
+				"FOREST" => ForestBiome::class,
+				"TAIGA" => TaigaBiome::class,
+				"SWAMP" => SwampBiome::class,
+				"RIVER" => RiverBiome::class,
+				"ICE_PLAINS" => IcePlainsBiome::class,
+				"SMALL_MOUNTAINS" => SmallMountainsBiome::class,
+				"BIRCH_FOREST" => ForestBiome::class
+			];
+
+			/**
+			 * @param string $argument
+			 * @param CommandSender $sender
+			 *
+			 * @return mixed
+			 */
+			public function parse(string $argument, CommandSender $sender) {
+				return Biome::getBiome(constant(Biome::class."::".$argument) ?? Biome::OCEAN); // TODO
+			}
+
+			public function getTypeName() : string {
+				return "biome";
+			}
+		});
 		// TODO: Implement prepare() method.
 	}
 

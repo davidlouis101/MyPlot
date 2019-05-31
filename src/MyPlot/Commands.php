@@ -3,6 +3,7 @@ declare(strict_types=1);
 namespace MyPlot;
 
 use CortexPE\Commando\args\BaseArgument;
+use CortexPE\Commando\args\StringEnumArgument;
 use CortexPE\Commando\BaseCommand;
 use MyPlot\subcommand\AddHelperSubCommand;
 use MyPlot\subcommand\AutoSubCommand;
@@ -85,8 +86,39 @@ class Commands extends BaseCommand implements PluginIdentifiableCommand
 	 */
 	protected function prepare() : void {
 		$plugin = $this->plugin;
+		$i = 0;
+		$this->registerArgument($i++, new class("SubCommand", false) extends StringEnumArgument{
+			protected const VALUES = [
+				"help" => "help",
+				"claim" => "claim",
+				"generate" => "generate"
+			];
+
+			public function parse(string $argument, CommandSender $sender) {
+				return $this->getValue($argument);
+			}
+
+			public function getTypeName() : string {
+				return "IntSubCommand";
+			}
+		});
+		$this->registerArgument($i, new class("SubCommand", false) extends StringEnumArgument{
+			protected const VALUES = [
+				"h" => "help",
+				"c" => "claim",
+				"gen" => "generate"
+			];
+
+			public function parse(string $argument, CommandSender $sender) {
+				return $this->getValue($argument);
+			}
+
+			public function getTypeName() : string {
+				return "BoolSubCommand";
+			}
+		});
 		$this->loadSubCommand(new HelpSubCommand($plugin, "help", $this));
-		$this->loadSubCommand(new ClaimSubCommand($plugin, "claim"));
+		/*$this->loadSubCommand(new ClaimSubCommand($plugin, "claim"));
 		$this->loadSubCommand(new GenerateSubCommand($plugin, "generate"));
 		$this->loadSubCommand(new InfoSubCommand($plugin, "info"));
 		$this->loadSubCommand(new AddHelperSubCommand($plugin, "addhelper"));
@@ -106,7 +138,7 @@ class Commands extends BaseCommand implements PluginIdentifiableCommand
 		$this->loadSubCommand(new UnDenySubCommand($plugin, "undenyplayer"));
 		$this->loadSubCommand(new SetOwnerSubCommand($plugin, "setowner"));
 		$this->loadSubCommand(new ListSubCommand($plugin, "list"));
-		$this->loadSubCommand(new PvpSubCommand($plugin, "pvp"));
+		$this->loadSubCommand(new PvpSubCommand($plugin, "pvp"));*/
 		$plugin->getLogger()->debug("Commands Registered to MyPlot");
 	}
 
@@ -117,8 +149,11 @@ class Commands extends BaseCommand implements PluginIdentifiableCommand
 	 */
 	public function onRun(CommandSender $sender, string $aliasUsed, array $args) : void {
 		if($this->getPlugin()->isDisabled()) {
-			/** @noinspection PhpUndefinedMethodInspection */
-			$sender->sendMessage($this->getPlugin()->getLanguage()->get("plugin.disabled"));
+			$sender->sendMessage($this->plugin->getLanguage()->get("plugin.disabled"));
+			return;
+		}
+		if(isset($args["SubCommand"])) {
+			var_dump($args);
 			return;
 		}
 		/** @noinspection PhpParamsInspection */

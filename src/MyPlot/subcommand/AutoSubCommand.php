@@ -2,6 +2,8 @@
 declare(strict_types=1);
 namespace MyPlot\subcommand;
 
+use CortexPE\Commando\args\BooleanArgument;
+use CortexPE\Commando\args\RawStringArgument;
 use pocketmine\command\CommandSender;
 use pocketmine\Player;
 use pocketmine\utils\TextFormat;
@@ -49,6 +51,8 @@ class AutoSubCommand extends SubCommand
 	 * This is where all the arguments, permissions, sub-commands, etc would be registered
 	 */
 	protected function prepare() : void {
+		$this->registerArgument(0, new BooleanArgument("claim", true));
+		$this->registerArgument(1, new RawStringArgument("name", true));
 		// TODO: Implement prepare() method.
 	}
 
