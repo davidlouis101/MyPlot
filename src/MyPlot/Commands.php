@@ -82,10 +82,21 @@ class Commands extends PluginCommand
 	/**
 	 * @param SubCommand $command
 	 */
-	private function loadSubCommand(SubCommand $command) : void {
+	public function loadSubCommand(SubCommand $command) : void {
 		$this->subCommands[$command->getName()] = $command;
 		if($command->getAlias() != "") {
 			$this->aliasSubCommands[$command->getAlias()] = $command;
+		}
+	}
+
+	/**
+	 * @param string $name
+	 */
+	public function unloadSubCommand(string $name) : void {
+		$subcommand = $this->subCommands[$name] ?? $this->aliasSubCommands[$name] ?? null;
+		if($subcommand !== null) {
+			unset($this->subCommands[$subcommand->getName()]);
+			unset($this->aliasSubCommands[$subcommand->getAlias()]);
 		}
 	}
 

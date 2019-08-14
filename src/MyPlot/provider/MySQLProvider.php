@@ -4,6 +4,7 @@ namespace MyPlot\provider;
 
 use MyPlot\MyPlot;
 use MyPlot\Plot;
+use pocketmine\Server;
 
 class MySQLProvider extends DataProvider {
 	/** @var MyPlot $plugin */
@@ -22,7 +23,7 @@ class MySQLProvider extends DataProvider {
 	 * @param int $cacheSize
 	 * @param array $settings
 	 */
-	public function __construct(MyPlot $plugin, int $cacheSize = 0, $settings) {
+	public function __construct(MyPlot $plugin, int $cacheSize = 0, array $settings = []) {
 		ini_set("mysqli.reconnect", "1");
 		ini_set('mysqli.allow_persistent', "1");
 		ini_set('mysql.connect_timeout', "300");
@@ -121,7 +122,8 @@ class MySQLProvider extends DataProvider {
 			}else{
 				$denied = explode(",", (string) $val["denied"]);
 			}
-			$plot = new Plot($levelName, $X, $Z, (string) $val["name"], (string) $val["owner"], $helpers, $denied, (string) $val["biome"], (bool) $val["pvp"], (int) $val["id"]);
+			$pvp = is_numeric($val["pvp"]) ? (bool)$val["pvp"] : null;
+			$plot = new Plot($levelName, $X, $Z, (string) $val["name"], (string) $val["owner"], $helpers, $denied, (string) $val["biome"], $pvp, (int) $val["id"]);
 		}else{
 			$plot = new Plot($levelName, $X, $Z);
 		}
@@ -154,7 +156,8 @@ class MySQLProvider extends DataProvider {
 		while($val = $result->fetch_array()) {
 			$helpers = explode(",", (string) $val["helpers"]);
 			$denied = explode(",", (string) $val["denied"]);
-			$plots[] = new Plot((string) $val["level"], (int) $val["X"], (int) $val["Z"], (string) $val["name"], (string) $val["owner"], $helpers, $denied, (string) $val["biome"], (bool) $val["pvp"], (int) $val["id"]);
+			$pvp = is_numeric($val["pvp"]) ? (bool)$val["pvp"] : null;
+			$plots[] = new Plot((string) $val["level"], (int) $val["X"], (int) $val["Z"], (string) $val["name"], (string) $val["owner"], $helpers, $denied, (string) $val["biome"], $pvp, (int) $val["id"]);
 		}
 		// Remove unloaded plots
 		$plots = array_filter($plots, function($plot) {
@@ -239,7 +242,7 @@ class MySQLProvider extends DataProvider {
 				foreach($this->plugin->getPlotLevels() as $levelName => $settings) {
 					$level = $this->plugin->getServer()->getLevelByName($levelName);
 					$level->save(); // don't force in case owner doesn't want it saved
-					$level->unload(true); // force unload to prevent possible griefing
+					Server::getInstance()->unloadLevel($level, true); // force unload to prevent possible griefing
 				}
 				if($this->plugin->getConfig()->getNested("MySQLSettings.ShutdownOnFailure", false)) {
 					$this->plugin->getServer()->shutdown();
@@ -251,7 +254,7 @@ class MySQLProvider extends DataProvider {
 	}
 
 	private function prepare() : void {
-		$this->sqlGetPlot = $this->db->prepare("SELECT id, name, owner, helpers, denied, biome FROM plots WHERE level = ? AND X = ? AND Z = ?;");
+		$this->sqlGetPlot = $this->db->prepare("SELECT id, name, owner, helpers, denied, biome, pvp FROM plots WHERE level = ? AND X = ? AND Z = ?;");
 		$this->sqlSavePlot = $this->db->prepare("INSERT INTO plots (`id`, `level`, `X`, `Z`, `name`, `owner`, `helpers`, `denied`, `biome`, `pvp`) VALUES((SELECT id FROM plots p WHERE p.level = ? AND X = ? AND Z = ?),?,?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE name = VALUES(name), owner = VALUES(owner), helpers = VALUES(helpers), denied = VALUES(denied), biome = VALUES(biome), pvp = VALUES(pvp);");
 		$this->sqlSavePlotById = $this->db->prepare("UPDATE plots SET id = ?, level = ?, X = ?, Z = ?, name = ?, owner = ?, helpers = ?, denied = ?, biome = ?, pvp = ? WHERE id = VALUES(id);");
 		$this->sqlRemovePlot = $this->db->prepare("DELETE FROM plots WHERE id = ?;");

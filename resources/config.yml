@@ -10,7 +10,7 @@
 #########################################
 
 # The language that should be used in MyPlot
-# Available languages: eng, nl, vi, spa, chs, zho, deu, cze, tur, kor
+# Available languages: eng, nld, vie, spa, chs, zho, deu, cze, tur, kor, fre
 #
 # English language pack by @jasonwynn10
 # Dutch language pack by @Wies
@@ -22,7 +22,12 @@
 # Czech language pack by @GamakCZ
 # Turkish language pack by @Eren5960
 # Korean language pack by @Johnmacrocraft
-language: eng
+# French language pack by @ad5001
+Language: eng
+
+# Allows editing language file as a config
+# This is not recommended unless you have a good text editor!
+Custom Messages: false
 
 # The data provider where plot data is stored.
 # Current providers are: sqlite, mysql, json, and yaml.
@@ -49,7 +54,10 @@ PlotCacheSize: 256
 # When a player enters a plot, a popup with basic info will be shown
 ShowPlotPopup: true
 
-# Amount of blocks to reset per tick.
+# If WorldStyler is installed, MyPlot will use that to clear the entire plot at once
+FastClearing: false
+
+# Amount of blocks to reset per tick. This only applies if FastClearing is disabled
 # Increasing this number will speed up '/p clear' and '/p reset' but also increases lag
 ClearBlocksPerTick: 256
 

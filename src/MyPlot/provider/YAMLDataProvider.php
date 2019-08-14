@@ -20,6 +20,7 @@ class YAMLDataProvider extends DataProvider {
 	 */
 	public function __construct(MyPlot $plugin, int $cacheSize = 0) {
 		parent::__construct($plugin, $cacheSize);
+		@mkdir($this->plugin->getDataFolder() . "Data");
 		$this->yaml = new Config($this->plugin->getDataFolder() . "Data" . DIRECTORY_SEPARATOR . "plots.yml", Config::YAML, ["count" => 0, "plots" => []]);
 	}
 
@@ -45,6 +46,7 @@ class YAMLDataProvider extends DataProvider {
 		$plots = $this->yaml->get("plots", []);
 		unset($plots[$plot->id]);
 		$this->yaml->set("plots", $plots);
+		$plot = new Plot($plot->levelName, $plot->X, $plot->Z);
 		$this->cachePlot($plot);
 		return $this->yaml->save();
 	}
@@ -77,18 +79,18 @@ class YAMLDataProvider extends DataProvider {
 			}
 		}
 		if($key != null) {
-			$plotName = $plots[$key]["name"] == "" ? "" : $plots[$key]["name"];
-			$owner = $plots[$key]["owner"] == "" ? "" : $plots[$key]["owner"];
-			$helpers = $plots[$key]["helpers"] == [] ? [] : $plots[$key]["helpers"];
-			$denied = $plots[$key]["denied"] == [] ? [] : $plots[$key]["denied"];
-			$biome = strtoupper($plots[$key]["biome"]) == "PLAINS" ? "PLAINS" : strtoupper($plots[$key]["biome"]);
-			$pvp = $plot[$key]["pvp"] == null ? false : $plot[$key]["pvp"];
+			$plotName = (string)$plots[$key]["name"];
+			$owner = (string)$plots[$key]["owner"];
+			$helpers = (array)$plots[$key]["helpers"];
+			$denied = (array)$plots[$key]["denied"];
+			$biome = strtoupper($plots[$key]["biome"]);
+			$pvp = $plot[$key]["pvp"];
 			return new Plot($levelName, $X, $Z, $plotName, $owner, $helpers, $denied, $biome, $pvp, $key);
 		}
 		$count = $this->yaml->get("count", 0);
 		$this->yaml->set("count", (int) $count++);
 		$this->yaml->save();
-		return new Plot($levelName, $X, $Z, "", "", [], [], "PLAINS", true, (int) $count);
+		return new Plot($levelName, $X, $Z, "", "", [], [], "PLAINS", null, (int) $count);
 	}
 
 	/**

@@ -64,7 +64,7 @@ class ClearPlotTask extends Task {
 					}elseif($this->pos->y === $this->height) {
 						$block = $this->plotFloorBlock;
 					}else{
-						$block = Block::get(0);
+						$block = Block::get(Block::AIR);
 					}
 					$this->level->setBlock($this->pos, $block, false, false);
 					$blocks++;
@@ -82,7 +82,7 @@ class ClearPlotTask extends Task {
 		}
 		foreach($this->level->getTiles() as $tile) {
 			if(($plot = $this->plugin->getPlotByPosition($tile)) != null) {
-				if($plot->X === $this->plot->X and $plot->Z === $this->plot->Z) {
+				if($this->plot->isSame($plot)) {
 					$tile->close();
 				}
 			}
