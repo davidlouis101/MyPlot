@@ -1,6 +1,6 @@
 name: MyPlot
 main: MyPlot\MyPlot
-version: 1.5.4
+version: 1.6.0
 api:
 - 3.4.0
 authors:
@@ -15,9 +15,6 @@ softdepend:
 - EssentialsPE
 - DEVirion
 - WorldStyler
-extensions:
-- sqlite3
-- yaml
 permissions:
   myplot.command:
     default: op

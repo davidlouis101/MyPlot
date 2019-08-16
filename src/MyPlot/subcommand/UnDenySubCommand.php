@@ -4,6 +4,7 @@ namespace MyPlot\subcommand;
 
 use CortexPE\Commando\args\TargetArgument;
 use pocketmine\command\CommandSender;
+use pocketmine\OfflinePlayer;
 use pocketmine\Player;
 use pocketmine\utils\TextFormat;
 
@@ -28,7 +29,7 @@ class UnDenySubCommand extends SubCommand
 		if(empty($args)) {
 			return false;
 		}
-		$dplayer = $args[0];
+		$dplayerName = $args[0];
 		$plot = $this->getPlugin()->getPlotByPosition($sender);
 		if($plot === null) {
 			$sender->sendMessage(TextFormat::RED . $this->translateString("notinplot"));
@@ -38,11 +39,13 @@ class UnDenySubCommand extends SubCommand
 			$sender->sendMessage(TextFormat::RED . $this->translateString("notowner"));
 			return true;
 		}
-		if(!$plot->unDenyPlayer($dplayer)) {
-			$sender->sendMessage(TextFormat::RED . $this->translateString("undenyplayer.failure", [$dplayer]));
+		if(!$plot->unDenyPlayer($dplayerName)) {
+			$sender->sendMessage(TextFormat::RED . $this->translateString("undenyplayer.failure", [$dplayerName]));
 			return true;
 		}
-		$dplayer = $this->getPlugin()->getServer()->getPlayer($dplayer) ?? $this->getPlugin()->getServer()->getOfflinePlayer($dplayer);
+		$dplayer = $this->getPlugin()->getServer()->getPlayer($dplayerName);
+		if($dplayer === null)
+			$dplayer = new OfflinePlayer($this->getPlugin()->getServer(), $dplayerName);
 		if($this->getPlugin()->removePlotDenied($plot, $dplayer->getName())) {
 			$sender->sendMessage($this->translateString("undenyplayer.success1", [$dplayer->getName()]));
 			if($dplayer instanceof Player) {
