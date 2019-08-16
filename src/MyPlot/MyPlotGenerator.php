@@ -85,8 +85,6 @@ class MyPlotGenerator extends Generator {
 		$plotFloorBlockMeta = $this->plotFloorBlock->getDamage();
 		$roadBlockId = $this->roadBlock->getId();
 		$roadBlockMeta = $this->roadBlock->getDamage();
-		$wallBlockId = $this->wallBlock->getId();
-		$wallBlockMeta = $this->wallBlock->getDamage();
 		$groundHeight = $this->groundHeight;
 		for($Z = 0; $Z < 16; ++$Z) {
 			for($X = 0; $X < 16; ++$X) {
@@ -95,18 +93,12 @@ class MyPlotGenerator extends Generator {
 				for($y = 1; $y < $groundHeight; ++$y) {
 					$chunk->setBlock($X, $y, $Z, $plotFillBlockId, $plotFillBlockMeta);
 				}
+				if($Z === 0 or $Z === 16 or $X === 0 or $X === 16) {
+					$chunk->setBlock($X, $this->groundHeight + 4, $Z, $this->wallBlock->getId(), $this->wallBlock->getDamage());
+				}
 				$type = $shape[($Z << 4) | $X];
 				if($type === self::PLOT) {
 					$chunk->setBlock($X, $groundHeight, $Z, $plotFloorBlockId, $plotFloorBlockMeta);
-					if(($Z + 1) < 16 and $shape[(($Z + 1) << 4) | $X] === self::WALL) {
-						$chunk->setBlock($X, $groundHeight + 1, $Z, $wallBlockId, $wallBlockMeta);
-					}elseif(($Z - 1) >= 0 and $shape[(($Z - 1) << 4) | $X] === self::WALL) {
-						$chunk->setBlock($X, $groundHeight + 1, $Z, $wallBlockId, $wallBlockMeta);
-					}elseif(($X + 1) < 16 and $shape[($Z << 4) | ($X + 1)] === self::WALL) {
-						$chunk->setBlock($X, $groundHeight + 1, $Z, $wallBlockId, $wallBlockMeta);
-					}elseif(($X - 1) >= 0 and $shape[($Z << 4) | ($X - 1)] === self::WALL) {
-						$chunk->setBlock($X, $groundHeight + 1, $Z, $wallBlockId, $wallBlockMeta);
-					}
 				}elseif($type === self::ROAD) {
 					$chunk->setBlock($X, $groundHeight, $Z, $roadBlockId, $roadBlockMeta);
 				}else{
@@ -118,6 +110,49 @@ class MyPlotGenerator extends Generator {
 		$chunk->setZ($chunkZ);
 		$chunk->setGenerated();
 		$this->level->setChunk($chunkX, $chunkZ, $chunk);
+	}
+
+	/**
+	 * @param int $chunkX
+	 * @param int $chunkZ
+	 */
+	public function populateChunk(int $chunkX, int $chunkZ) : void {
+		$shape = $this->getShape($chunkX << 4, $chunkZ << 4);
+		$chunk = $this->level->getChunk($chunkX, $chunkZ);
+		$wallBlockId = $this->wallBlock->getId();
+		$wallBlockMeta = $this->wallBlock->getDamage();
+		$groundHeight = $this->groundHeight;
+		for($Z = 0; $Z < 16; ++$Z) {
+			for($X = 0; $X < 16; ++$X) {
+				$type = $shape[($Z << 4) | $X];
+				if($type === self::PLOT) {
+					if(($Z + 1) < 16) {
+						if($shape[(($Z + 1) << 4) | $X] === self::WALL)
+							$chunk->setBlock($X, $groundHeight + 1, $Z, $wallBlockId, $wallBlockMeta);
+					}else{
+						//TODO: detect edge from other chunk
+					}
+					if(($Z - 1) >= 0) {
+						if($shape[(($Z - 1) << 4) | $X] === self::WALL)
+							$chunk->setBlock($X, $groundHeight + 1, $Z, $wallBlockId, $wallBlockMeta);
+					}else{
+						//TODO: detect edge from other chunk
+					}
+					if(($X + 1) < 16) {
+						if($shape[($Z << 4) | ($X + 1)] === self::WALL)
+							$chunk->setBlock($X, $groundHeight + 1, $Z, $wallBlockId, $wallBlockMeta);
+					}else{
+						//TODO: detect edge from other chunk
+					}
+					if(($X - 1) >= 0) {
+						if($shape[($Z << 4) | ($X - 1)] === self::WALL)
+							$chunk->setBlock($X, $groundHeight + 1, $Z, $wallBlockId, $wallBlockMeta);
+					}else{
+						//TODO: detect edge from other chunk
+					}
+				}
+			}
+		}
 	}
 
 	/**
@@ -175,13 +210,6 @@ class MyPlotGenerator extends Generator {
 			}
 		}
 		return $shape;
-	}
-
-	/**
-	 * @param int $chunkX
-	 * @param int $chunkZ
-	 */
-	public function populateChunk(int $chunkX, int $chunkZ) : void {
 	}
 
 	/**
