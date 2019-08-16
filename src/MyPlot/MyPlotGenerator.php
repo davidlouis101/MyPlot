@@ -41,7 +41,7 @@ class MyPlotGenerator extends Generator {
 		$this->plotFloorBlock = PlotLevelSettings::parseBlock($settings, "PlotFloorBlock", Block::get(Block::GRASS));
 		$this->plotFillBlock = PlotLevelSettings::parseBlock($settings, "PlotFillBlock", Block::get(Block::DIRT));
 		$this->bottomBlock = PlotLevelSettings::parseBlock($settings, "BottomBlock", Block::get(Block::BEDROCK));
-		$this->roadWidth = PlotLevelSettings::parseNumber($settings, "RoadWidth", 7) - 2;
+		$this->roadWidth = PlotLevelSettings::parseNumber($settings, "RoadWidth", 7);
 		$this->plotSize = PlotLevelSettings::parseNumber($settings, "PlotSize", 32);
 		$this->groundHeight = PlotLevelSettings::parseNumber($settings, "GroundHeight", 64);
 		$this->settings = [];
@@ -85,7 +85,10 @@ class MyPlotGenerator extends Generator {
 		$plotFloorBlockMeta = $this->plotFloorBlock->getDamage();
 		$roadBlockId = $this->roadBlock->getId();
 		$roadBlockMeta = $this->roadBlock->getDamage();
+		$wallBlockId = $this->wallBlock->getId();
+		$wallBlockMeta = $this->wallBlock->getDamage();
 		$groundHeight = $this->groundHeight;
+
 		for($Z = 0; $Z < 16; ++$Z) {
 			for($X = 0; $X < 16; ++$X) {
 				$chunk->setBiomeId($X, $Z, Biome::PLAINS);
@@ -93,16 +96,14 @@ class MyPlotGenerator extends Generator {
 				for($y = 1; $y < $groundHeight; ++$y) {
 					$chunk->setBlock($X, $y, $Z, $plotFillBlockId, $plotFillBlockMeta);
 				}
-				if($Z === 0 or $Z === 16 or $X === 0 or $X === 16) {
-					$chunk->setBlock($X, $this->groundHeight + 4, $Z, $this->wallBlock->getId(), $this->wallBlock->getDamage());
-				}
 				$type = $shape[($Z << 4) | $X];
 				if($type === self::PLOT) {
 					$chunk->setBlock($X, $groundHeight, $Z, $plotFloorBlockId, $plotFloorBlockMeta);
 				}elseif($type === self::ROAD) {
 					$chunk->setBlock($X, $groundHeight, $Z, $roadBlockId, $roadBlockMeta);
 				}else{
-					$chunk->setBlock($X, $groundHeight, $Z, $roadBlockId, $roadBlockMeta);
+					$chunk->setBlock($X, $groundHeight, $Z, $plotFloorBlockId, $plotFloorBlockMeta);
+					$chunk->setBlock($X, $groundHeight + 1, $Z, $wallBlockId, $wallBlockMeta);
 				}
 			}
 		}
@@ -113,49 +114,6 @@ class MyPlotGenerator extends Generator {
 	}
 
 	/**
-	 * @param int $chunkX
-	 * @param int $chunkZ
-	 */
-	public function populateChunk(int $chunkX, int $chunkZ) : void {
-		$shape = $this->getShape($chunkX << 4, $chunkZ << 4);
-		$chunk = $this->level->getChunk($chunkX, $chunkZ);
-		$wallBlockId = $this->wallBlock->getId();
-		$wallBlockMeta = $this->wallBlock->getDamage();
-		$groundHeight = $this->groundHeight;
-		for($Z = 0; $Z < 16; ++$Z) {
-			for($X = 0; $X < 16; ++$X) {
-				$type = $shape[($Z << 4) | $X];
-				if($type === self::PLOT) {
-					if(($Z + 1) < 16) {
-						if($shape[(($Z + 1) << 4) | $X] === self::WALL)
-							$chunk->setBlock($X, $groundHeight + 1, $Z, $wallBlockId, $wallBlockMeta);
-					}else{
-						//TODO: detect edge from other chunk
-					}
-					if(($Z - 1) >= 0) {
-						if($shape[(($Z - 1) << 4) | $X] === self::WALL)
-							$chunk->setBlock($X, $groundHeight + 1, $Z, $wallBlockId, $wallBlockMeta);
-					}else{
-						//TODO: detect edge from other chunk
-					}
-					if(($X + 1) < 16) {
-						if($shape[($Z << 4) | ($X + 1)] === self::WALL)
-							$chunk->setBlock($X, $groundHeight + 1, $Z, $wallBlockId, $wallBlockMeta);
-					}else{
-						//TODO: detect edge from other chunk
-					}
-					if(($X - 1) >= 0) {
-						if($shape[($Z << 4) | ($X - 1)] === self::WALL)
-							$chunk->setBlock($X, $groundHeight + 1, $Z, $wallBlockId, $wallBlockMeta);
-					}else{
-						//TODO: detect edge from other chunk
-					}
-				}
-			}
-		}
-	}
-
-	/**
 	 * @param int $x
 	 * @param int $z
 	 *
@@ -163,6 +121,7 @@ class MyPlotGenerator extends Generator {
 	 */
 	public function getShape(int $x, int $z) {
 		$totalSize = $this->plotSize + $this->roadWidth;
+		$totalSize -= 2;
 		if($x >= 0) {
 			$X = $x % $totalSize;
 		}else{
@@ -179,9 +138,9 @@ class MyPlotGenerator extends Generator {
 			if($Z === $totalSize) {
 				$Z = 0;
 			}
-			if($Z < $this->plotSize) {
+			if($Z < $this->plotSize - 1) {
 				$typeZ = self::PLOT;
-			}elseif($Z === $this->plotSize or $Z === ($totalSize - 1)) {
+			}elseif($Z === $this->plotSize - 1 or $Z === ($totalSize - 1)) {
 				$typeZ = self::WALL;
 			}else{
 				$typeZ = self::ROAD;
@@ -190,9 +149,9 @@ class MyPlotGenerator extends Generator {
 				if($X === $totalSize) {
 					$X = 0;
 				}
-				if($X < $this->plotSize) {
+				if($X < $this->plotSize - 1) {
 					$typeX = self::PLOT;
-				}elseif($X === $this->plotSize or $X === ($totalSize - 1)) {
+				}elseif($X === $this->plotSize - 1 or $X === ($totalSize - 1)) {
 					$typeX = self::WALL;
 				}else{
 					$typeX = self::ROAD;
@@ -211,6 +170,12 @@ class MyPlotGenerator extends Generator {
 		}
 		return $shape;
 	}
+
+	/**
+	 * @param int $chunkX
+	 * @param int $chunkZ
+	 */
+	public function populateChunk(int $chunkX, int $chunkZ) : void {}
 
 	/**
 	 * @return Vector3
