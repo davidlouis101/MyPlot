@@ -41,7 +41,7 @@ class MyPlotGenerator extends Generator {
 		$this->plotFloorBlock = PlotLevelSettings::parseBlock($settings, "PlotFloorBlock", Block::get(Block::GRASS));
 		$this->plotFillBlock = PlotLevelSettings::parseBlock($settings, "PlotFillBlock", Block::get(Block::DIRT));
 		$this->bottomBlock = PlotLevelSettings::parseBlock($settings, "BottomBlock", Block::get(Block::BEDROCK));
-		$this->roadWidth = PlotLevelSettings::parseNumber($settings, "RoadWidth", 7);
+		$this->roadWidth = PlotLevelSettings::parseNumber($settings, "RoadWidth", 7) - 2;
 		$this->plotSize = PlotLevelSettings::parseNumber($settings, "PlotSize", 32);
 		$this->groundHeight = PlotLevelSettings::parseNumber($settings, "GroundHeight", 64);
 		$this->settings = [];
@@ -98,11 +98,19 @@ class MyPlotGenerator extends Generator {
 				$type = $shape[($Z << 4) | $X];
 				if($type === self::PLOT) {
 					$chunk->setBlock($X, $groundHeight, $Z, $plotFloorBlockId, $plotFloorBlockMeta);
+					if(($Z + 1) < 16 and $shape[(($Z + 1) << 4) | $X] === self::WALL) {
+						$chunk->setBlock($X, $groundHeight + 1, $Z, $wallBlockId, $wallBlockMeta);
+					}elseif(($Z - 1) >= 0 and $shape[(($Z - 1) << 4) | $X] === self::WALL) {
+						$chunk->setBlock($X, $groundHeight + 1, $Z, $wallBlockId, $wallBlockMeta);
+					}elseif(($X + 1) < 16 and $shape[($Z << 4) | ($X + 1)] === self::WALL) {
+						$chunk->setBlock($X, $groundHeight + 1, $Z, $wallBlockId, $wallBlockMeta);
+					}elseif(($X - 1) >= 0 and $shape[($Z << 4) | ($X - 1)] === self::WALL) {
+						$chunk->setBlock($X, $groundHeight + 1, $Z, $wallBlockId, $wallBlockMeta);
+					}
 				}elseif($type === self::ROAD) {
 					$chunk->setBlock($X, $groundHeight, $Z, $roadBlockId, $roadBlockMeta);
 				}else{
 					$chunk->setBlock($X, $groundHeight, $Z, $roadBlockId, $roadBlockMeta);
-					$chunk->setBlock($X, $groundHeight + 1, $Z, $wallBlockId, $wallBlockMeta);
 				}
 			}
 		}
