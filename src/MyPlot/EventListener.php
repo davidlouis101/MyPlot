@@ -19,8 +19,14 @@ use pocketmine\event\level\LevelUnloadEvent;
 use pocketmine\event\Listener;
 use pocketmine\event\player\PlayerInteractEvent;
 use pocketmine\event\player\PlayerMoveEvent;
+use pocketmine\event\server\DataPacketSendEvent;
 use pocketmine\level\Level;
+use pocketmine\network\mcpe\protocol\AvailableCommandsPacket;
+use pocketmine\network\mcpe\protocol\types\CommandData;
+use pocketmine\network\mcpe\protocol\types\CommandEnum;
+use pocketmine\network\mcpe\protocol\types\CommandParameter;
 use pocketmine\Player;
+use pocketmine\scheduler\Task;
 use pocketmine\utils\Config;
 use pocketmine\utils\TextFormat;
 
@@ -28,6 +34,7 @@ class EventListener implements Listener
 {
 	/** @var MyPlot $plugin */
 	private $plugin;
+	private $sent = [];
 
 	/**
 	 * EventListener constructor.
@@ -332,6 +339,95 @@ class EventListener implements Listener
 				$event->getDamager()->sendMessage(TextFormat::RED.$this->plugin->getLanguage()->translateString("pvp.world"));
 				$this->plugin->getLogger()->debug("Cancelled pvp event on ".$levelName);
 			}
+		}
+	}
+
+	/**
+	 * @ignoreCancelled false
+	 * @priority LOWEST
+	 *
+	 * @param DataPacketSendEvent $event
+	 */
+	public function onPacketSend(DataPacketSendEvent $event) : void {
+		if($event->getPacket() instanceof AvailableCommandsPacket and !isset($this->sent[$event->getPlayer()->getName()])) {
+			$pk = $event->getPacket();
+			$player = $event->getPlayer();
+			$this->sent[$player->getName()] = true;
+			$this->plugin->getScheduler()->scheduleDelayedTask(new class($this->plugin, $pk, $player) extends Task {
+				private $plugin;
+				private $pk;
+				private $player;
+				public function __construct(MyPlot $plugin, AvailableCommandsPacket $pk, Player $player) {
+					$this->plugin = $plugin;
+					$this->pk = clone $pk;
+					$this->player = $player;
+				}
+
+				/**
+				 * Actions to execute when run
+				 *
+				 * @param int $currentTick
+				 *
+				 * @return void
+				 */
+				public function onRun(int $currentTick) {
+					/** @var Commands $command */
+					$command = $this->plugin->getServer()->getCommandMap()->getCommand($this->plugin->getLanguage()->get("command.name"));
+
+					$data = new CommandData();
+					$data->commandName = strtolower($command->getName());
+					$data->commandDescription = $this->plugin->getServer()->getLanguage()->translateString($command->getDescription());
+					$data->flags = 0; // TODO
+					$data->permission = 0; // TODO
+
+					$i = 0;
+					foreach($command->getCommands() as $subCommand) {
+						if(!$subCommand->canUse($this->player))
+							continue;
+						$parameter = new CommandParameter();
+						$parameter->paramName = $subCommand->getName();
+						$parameter->paramType = AvailableCommandsPacket::ARG_FLAG_VALID | AvailableCommandsPacket::ARG_TYPE_STRING;
+						$parameter->isOptional = true;
+						//$parameter->enum = new CommandEnum();
+						//$parameter->enum->enumName = $subCommand->getName();
+						//$parameter->enum->enumValues = ["a","b","c"];
+						$data->overloads[$i][0] = $parameter;
+						$usage = $subCommand->getUsage();
+						$args = explode(" ", $usage);
+						array_shift($args); // command
+						array_shift($args); // subcommand
+						$a = 0;
+						foreach($args as $arg) {
+							echo $arg."\n";
+							$parameter = new CommandParameter();
+							$parameter->paramName = $arg;
+							$parameter->paramType = AvailableCommandsPacket::ARG_FLAG_VALID | AvailableCommandsPacket::ARG_TYPE_STRING;
+							if($arg[0] === "<")
+								$parameter->isOptional = false;
+							else
+								$parameter->isOptional = true;
+							$data->overloads[$i][$a++] = $parameter;
+						}
+						$i++;
+					}
+
+					$aliases = $command->getAliases();
+					if(!empty($aliases)) {
+						if(!in_array($data->commandName, $aliases, true)) {
+							//work around a client bug which makes the original name not show when aliases are used
+							$aliases[] = $data->commandName;
+						}
+						$data->aliases = new CommandEnum();
+						$data->aliases->enumName = ucfirst($command->getName()) . "Aliases";
+						$data->aliases->enumValues = $aliases;
+					}
+
+					$this->pk->commandData[$command->getName()] = $data;
+
+					$this->player->dataPacket($this->pk);
+					echo "sent\n";
+				}
+			}, 2);
 		}
 	}
 }
