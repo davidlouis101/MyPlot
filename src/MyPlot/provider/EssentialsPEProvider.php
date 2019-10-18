@@ -3,7 +3,7 @@ declare(strict_types=1);
 namespace MyPlot\provider;
 
 use EssentialsPE\Loader;
-use pocketmine\Player;
+use pocketmine\player\Player;
 
 class EssentialsPEProvider implements EconomyProvider {
 	/** @var Loader $plugin */

@@ -7,6 +7,7 @@ use MyPlot\events\MyPlotPlayerEnterPlotEvent;
 use MyPlot\events\MyPlotPlayerLeavePlotEvent;
 use MyPlot\events\MyPlotPvpEvent;
 use pocketmine\block\Sapling;
+use pocketmine\block\utils\TreeType;
 use pocketmine\event\block\BlockBreakEvent;
 use pocketmine\event\block\BlockPlaceEvent;
 use pocketmine\event\block\BlockSpreadEvent;
@@ -14,13 +15,13 @@ use pocketmine\event\block\SignChangeEvent;
 use pocketmine\event\entity\EntityDamageByEntityEvent;
 use pocketmine\event\entity\EntityExplodeEvent;
 use pocketmine\event\entity\EntityMotionEvent;
-use pocketmine\event\level\LevelLoadEvent;
-use pocketmine\event\level\LevelUnloadEvent;
+use pocketmine\event\world\WorldLoadEvent;
+use pocketmine\event\world\WorldUnloadEvent;
 use pocketmine\event\Listener;
 use pocketmine\event\player\PlayerInteractEvent;
 use pocketmine\event\player\PlayerMoveEvent;
-use pocketmine\level\Level;
-use pocketmine\Player;
+use pocketmine\player\Player;
+use pocketmine\world\World;
 use pocketmine\utils\Config;
 use pocketmine\utils\TextFormat;
 
@@ -42,12 +43,12 @@ class EventListener implements Listener
 	 * @ignoreCancelled false
 	 * @priority LOWEST
 	 *
-	 * @param LevelLoadEvent $event
+	 * @param WorldLoadEvent $event
 	 */
-	public function onLevelLoad(LevelLoadEvent $event) : void {
-		if(file_exists($this->plugin->getDataFolder()."worlds".DIRECTORY_SEPARATOR.$event->getLevel()->getFolderName().".yml")) {
-			$this->plugin->getLogger()->debug("MyPlot level " . $event->getLevel()->getFolderName() . " loaded!");
-			$settings = $event->getLevel()->getProvider()->getLevelData()->getGeneratorOptions();
+	public function onLevelLoad(WorldLoadEvent $event) : void {
+		if(file_exists($this->plugin->getDataFolder()."worlds".DIRECTORY_SEPARATOR.$event->getWorld()->getFolderName().".yml")) {
+			$this->plugin->getLogger()->debug("MyPlot world " . $event->getWorld()->getFolderName() . " loaded!");
+			$settings = $event->getWorld()->getProvider()->getWorldData()->getGeneratorOptions();
 			if(!isset($settings["preset"]) or empty($settings["preset"])) {
 				return;
 			}
@@ -55,13 +56,13 @@ class EventListener implements Listener
 			if($settings === false) {
 				return;
 			}
-			$levelName = $event->getLevel()->getFolderName();
+			$worldName = $event->getWorld()->getFolderName();
 			$default = $this->plugin->getConfig()->get("DefaultWorld", []);
-			$config = new Config($this->plugin->getDataFolder()."worlds".DIRECTORY_SEPARATOR.$levelName.".yml", Config::YAML, $default);
+			$config = new Config($this->plugin->getDataFolder()."worlds".DIRECTORY_SEPARATOR.$worldName.".yml", Config::YAML, $default);
 			foreach(array_keys($default) as $key) {
 				$settings[$key] = $config->get($key);
 			}
-			$this->plugin->addLevelSettings($levelName, new PlotLevelSettings($levelName, $settings));
+			$this->plugin->addLevelSettings($worldName, new PlotLevelSettings($worldName, $settings));
 		}
 	}
 
@@ -69,15 +70,15 @@ class EventListener implements Listener
 	 * @ignoreCancelled false
 	 * @priority MONITOR
 	 *
-	 * @param LevelUnloadEvent $event
+	 * @param WorldUnloadEvent $event
 	 */
-	public function onLevelUnload(LevelUnloadEvent $event) : void {
+	public function onWorldUnload(WorldUnloadEvent $event) : void {
 		if($event->isCancelled()) {
 			return;
 		}
-		$levelName = $event->getLevel()->getFolderName();
-		if($this->plugin->unloadLevelSettings($levelName)) {
-			$this->plugin->getLogger()->debug("Level " . $event->getLevel()->getFolderName() . " unloaded!");
+		$worldName = $event->getWorld()->getFolderName();
+		if($this->plugin->unloadLevelSettings($worldName)) {
+			$this->plugin->getLogger()->debug("World " . $event->getWorld()->getFolderName() . " unloaded!");
 		}
 	}
 
@@ -125,11 +126,11 @@ class EventListener implements Listener
 	 * @param BlockPlaceEvent|BlockBreakEvent|PlayerInteractEvent|SignChangeEvent $event
 	 */
 	private function onEventOnBlock($event) : void {
-		$levelName = $event->getBlock()->getLevel()->getFolderName();
-		if(!$this->plugin->isLevelLoaded($levelName)) {
+		$worldName = $event->getBlock()->getPos()->getWorld()->getFolderName();
+		if(!$this->plugin->isLevelLoaded($worldName)) {
 			return;
 		}
-		$plot = $this->plugin->getPlotByPosition($event->getBlock());
+		$plot = $this->plugin->getPlotByPosition($event->getBlock()->getPos());
 		if($plot !== null) {
 			$ev = new MyPlotBlockEvent($plot, $event->getBlock(), $event->getPlayer(), $event);
 			if($event->isCancelled()) {
@@ -146,15 +147,15 @@ class EventListener implements Listener
 				 * so the leaves won't go outside the plot
 				 */
 				$block = $event->getBlock();
-				$maxLengthLeaves = (($block->getMeta() & 0x07) == Sapling::SPRUCE) ? 3 : 2;
+				$maxLengthLeaves = (($block->getMeta() & 0x07) == TreeType::SPRUCE()) ? 3 : 2;
 				$beginPos = $this->plugin->getPlotPosition($plot);
 				$endPos = clone $beginPos;
 				$beginPos->x += $maxLengthLeaves;
 				$beginPos->z += $maxLengthLeaves;
-				$plotSize = $this->plugin->getLevelSettings($levelName)->plotSize;
+				$plotSize = $this->plugin->getLevelSettings($worldName)->plotSize;
 				$endPos->x += $plotSize - $maxLengthLeaves;
 				$endPos->z += $plotSize - $maxLengthLeaves;
-				if($block->x >= $beginPos->x and $block->z >= $beginPos->z and $block->x < $endPos->x and $block->z < $endPos->z) {
+				if($block->getPos()->x >= $beginPos->x and $block->getPos()->z >= $beginPos->z and $block->getPos()->x < $endPos->x and $block->getPos()->z < $endPos->z) {
 					return;
 				}
 			}
@@ -174,8 +175,8 @@ class EventListener implements Listener
 		if($event->isCancelled()) {
 			return;
 		}
-		$levelName = $event->getEntity()->getLevel()->getFolderName();
-		if(!$this->plugin->isLevelLoaded($levelName))
+		$worldName = $event->getEntity()->getWorld()->getFolderName();
+		if(!$this->plugin->isLevelLoaded($worldName))
 			return;
 		$plot = $this->plugin->getPlotByPosition($event->getPosition());
 		if($plot === null) {
@@ -184,7 +185,7 @@ class EventListener implements Listener
 		}
 		$beginPos = $this->plugin->getPlotPosition($plot);
 		$endPos = clone $beginPos;
-		$plotSize = $this->plugin->getLevelSettings($levelName)->plotSize;
+		$plotSize = $this->plugin->getLevelSettings($worldName)->plotSize;
 		$endPos->x += $plotSize;
 		$endPos->z += $plotSize;
 		$blocks = array_filter($event->getBlockList(), function($block) use ($beginPos, $endPos) {
@@ -206,16 +207,16 @@ class EventListener implements Listener
 		if($event->isCancelled()) {
 			return;
 		}
-		$level = $event->getEntity()->getLevel();
-		if(!$level instanceof Level)
+		$world = $event->getEntity()->getWorld();
+		if(!$world instanceof World)
 			return;
-		$levelName = $level->getFolderName();
-		if(!$this->plugin->isLevelLoaded($levelName))
+		$worldName = $world->getFolderName();
+		if(!$this->plugin->isLevelLoaded($worldName))
 			return;
-		$settings = $this->plugin->getLevelSettings($levelName);
+		$settings = $this->plugin->getLevelSettings($worldName);
 		if($settings->restrictEntityMovement and !($event->getEntity() instanceof Player)) {
 			$event->setCancelled();
-			$this->plugin->getLogger()->debug("Cancelled entity motion on " . $levelName);
+			$this->plugin->getLogger()->debug("Cancelled entity motion on " . $worldName);
 		}
 	}
 
@@ -229,13 +230,13 @@ class EventListener implements Listener
 		if($event->isCancelled()) {
 			return;
 		}
-		$levelName = $event->getBlock()->getLevel()->getFolderName();
-		if(!$this->plugin->isLevelLoaded($levelName))
+		$worldName = $event->getBlock()->getPos()->getWorld()->getFolderName();
+		if(!$this->plugin->isLevelLoaded($worldName))
 			return;
-		$settings = $this->plugin->getLevelSettings($levelName);
+		$settings = $this->plugin->getLevelSettings($worldName);
 		if(!$settings->updatePlotLiquids) {
 			$event->setCancelled();
-			$this->plugin->getLogger()->debug("Cancelled block spread of {$event->getBlock()->getName()} on " . $levelName);
+			$this->plugin->getLogger()->debug("Cancelled block spread of {$event->getBlock()->getName()} on " . $worldName);
 		}
 	}
 
@@ -246,8 +247,8 @@ class EventListener implements Listener
 	 * @param PlayerMoveEvent $event
 	 */
 	public function onPlayerMove(PlayerMoveEvent $event) : void {
-		$levelName = $event->getPlayer()->getLevel()->getFolderName();
-		if(!$this->plugin->isLevelLoaded($levelName))
+		$worldName = $event->getPlayer()->getWorld()->getFolderName();
+		if(!$this->plugin->isLevelLoaded($worldName))
 			return;
 		$plot = $this->plugin->getPlotByPosition($event->getTo());
 		if($plot !== null and $plot !== $this->plugin->getPlotByPosition($event->getFrom())) {
@@ -299,11 +300,11 @@ class EventListener implements Listener
 	 */
 	public function onEntityDamage(EntityDamageByEntityEvent $event) : void {
 		if($event->getEntity() instanceof Player and $event->getDamager() instanceof Player) {
-			$levelName = $event->getEntity()->getLevel()->getFolderName();
-			if(!$this->plugin->isLevelLoaded($levelName)) {
+			$worldName = $event->getEntity()->getWorld()->getFolderName();
+			if(!$this->plugin->isLevelLoaded($worldName)) {
 				return;
 			}
-			$settings = $this->plugin->getLevelSettings($levelName);
+			$settings = $this->plugin->getLevelSettings($worldName);
 			$plot = $this->plugin->getPlotByPosition($event->getEntity());
 			if($plot !== null) {
 				/** @noinspection PhpParamsInspection */
@@ -312,7 +313,7 @@ class EventListener implements Listener
 				/** @noinspection PhpUndefinedMethodInspection */
 				if(($settings->restrictPVP or !$plot->pvp) and !$event->getDamager()->hasPermission("myplot.admin.pvp.bypass")) {
 					$ev->setCancelled();
-					$this->plugin->getLogger()->debug("Cancelled pvp event in plot ".$plot->X.";".$plot->Z." on level '" . $levelName . "'");
+					$this->plugin->getLogger()->debug("Cancelled pvp event in plot ".$plot->X.";".$plot->Z." on world '" . $worldName . "'");
 				}
 				$ev->call();
 				$event->setCancelled($ev->isCancelled());
@@ -329,7 +330,7 @@ class EventListener implements Listener
 				$event->setCancelled();
 				/** @noinspection PhpUndefinedMethodInspection */
 				$event->getDamager()->sendMessage(TextFormat::RED.$this->plugin->getLanguage()->translateString("pvp.world"));
-				$this->plugin->getLogger()->debug("Cancelled pvp event on ".$levelName);
+				$this->plugin->getLogger()->debug("Cancelled pvp event on ".$worldName);
 			}
 		}
 	}
