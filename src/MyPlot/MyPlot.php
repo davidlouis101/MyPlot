@@ -756,7 +756,7 @@ class MyPlot extends PluginBase
 		$lang = $this->getConfig()->get("Language", Language::FALLBACK_LANGUAGE);
 		if($this->getConfig()->get("Custom Messages", false)) {
 			if(!file_exists($this->getDataFolder()."lang.ini")) {
-				$resource = $this->getResource($lang.".ini") ?? file_get_contents($this->getFile()."resources/".BaseLang::FALLBACK_LANGUAGE.".ini");
+				$resource = $this->getResource($lang.".ini") ?? file_get_contents($this->getFile()."resources/".Language::FALLBACK_LANGUAGE.".ini");
 				file_put_contents($this->getDataFolder()."lang.ini", $resource);
 				if(!is_string($resource)) {
 					fclose($resource);
