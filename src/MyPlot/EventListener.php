@@ -57,7 +57,9 @@ class EventListener implements Listener
 				return;
 			}
 			$worldName = $event->getWorld()->getFolderName();
-			$default = $this->plugin->getConfig()->get("DefaultWorld", []);
+			$default = array_filter($this->plugin->getConfig()->get("DefaultWorld", []), function($key){
+				return !in_array($key, ["PlotSize", "GroundHeight", "RoadWidth", "RoadBlock", "WallBlock", "PlotFloorBlock", "PlotFillBlock", "BottomBlock"]);
+			}, ARRAY_FILTER_USE_KEY);
 			$config = new Config($this->plugin->getDataFolder()."worlds".DIRECTORY_SEPARATOR.$worldName.".yml", Config::YAML, $default);
 			foreach(array_keys($default) as $key) {
 				$settings[$key] = $config->get($key);
@@ -162,7 +164,7 @@ class EventListener implements Listener
 		}elseif($event->getPlayer()->hasPermission("myplot.admin.build.road"))
 			return;
 		$event->setCancelled();
-		$this->plugin->getLogger()->debug("Block placement/interaction of {$event->getBlock()->getName()} was cancelled");
+		$this->plugin->getLogger()->debug("Block placement/break/interaction of {$event->getBlock()->getName()} was cancelled at ".$event->getBlock()->asPosition()->__toString());
 	}
 
 	/**
@@ -251,15 +253,16 @@ class EventListener implements Listener
 		if(!$this->plugin->isLevelLoaded($worldName))
 			return;
 		$plot = $this->plugin->getPlotByPosition($event->getTo());
-		if($plot !== null and $plot !== $this->plugin->getPlotByPosition($event->getFrom())) {
-			$ev = new MyPlotPlayerEnterPlotEvent($plot, $event->getPlayer());
-			$ev->setCancelled($event->isCancelled());
-			if($plot->isDenied($event->getPlayer()->getName())) {
-				$ev->setCancelled();
-				return;
-			}
+		$plotFrom = $this->plugin->getPlotByPosition($event->getFrom());
+		if($plot !== null and ($plotFrom === null or !$plot->isSame($plotFrom))) {
 			if(strpos((string) $plot, "-0")) {
 				return;
+			}
+			$ev = new MyPlotPlayerEnterPlotEvent($plot, $event->getPlayer());
+			$ev->setCancelled($event->isCancelled());
+			$username = $event->getPlayer()->getName();
+			if($plot->owner !== $username and ($plot->isDenied($username) or $plot->isDenied("*")) and !$event->getPlayer()->hasPermission("myplot.admin.denyplayer.bypass")) {
+				$ev->setCancelled();
 			}
 			$ev->call();
 			$event->setCancelled($ev->isCancelled());
@@ -269,23 +272,22 @@ class EventListener implements Listener
 			if(!$this->plugin->getConfig()->get("ShowPlotPopup", true))
 				return;
 			$popup = $this->plugin->getLanguage()->translateString("popup", [TextFormat::GREEN . $plot]);
-			if($plot->owner !== "") {
+			if(!empty($plot->owner)) {
 				$owner = TextFormat::GREEN . $plot->owner;
 				$ownerPopup = $this->plugin->getLanguage()->translateString("popup.owner", [$owner]);
-				$paddingSize = (int) floor((strlen($popup) - strlen($ownerPopup)) / 2);
-				$paddingPopup = str_repeat(" ", max(0, -$paddingSize));
-				$paddingOwnerPopup = str_repeat(" ", max(0, $paddingSize));
-				$popup = TextFormat::WHITE . $paddingPopup . $popup . "\n" . TextFormat::WHITE . $paddingOwnerPopup . $ownerPopup;
 			}else{
 				$ownerPopup = $this->plugin->getLanguage()->translateString("popup.available");
-				$paddingSize = (int) floor((strlen($popup) - strlen($ownerPopup)) / 2);
-				$paddingPopup = str_repeat(" ", max(0, -$paddingSize));
-				$paddingOwnerPopup = str_repeat(" ", max(0, $paddingSize));
-				$popup = TextFormat::WHITE . $paddingPopup . $popup . "\n" . TextFormat::WHITE . $paddingOwnerPopup . $ownerPopup;
 			}
+			$paddingSize = (int) floor((strlen($popup) - strlen($ownerPopup)) / 2);
+			$paddingPopup = str_repeat(" ", max(0, -$paddingSize));
+			$paddingOwnerPopup = str_repeat(" ", max(0, $paddingSize));
+			$popup = TextFormat::WHITE . $paddingPopup . $popup . "\n" . TextFormat::WHITE . $paddingOwnerPopup . $ownerPopup;
 			$event->getPlayer()->sendTip($popup);
-		}elseif($plot === null and ($plot = $this->plugin->getPlotByPosition($event->getFrom())) !== null) {
-			$ev = new MyPlotPlayerLeavePlotEvent($plot, $event->getPlayer());
+		}elseif($plotFrom !== null and ($plot === null or !$plot->isSame($plotFrom))) {
+			if(strpos((string) $plotFrom, "-0")) {
+				return;
+			}
+			$ev = new MyPlotPlayerLeavePlotEvent($plotFrom, $event->getPlayer());
 			$ev->setCancelled($event->isCancelled());
 			$ev->call();
 			$event->setCancelled($ev->isCancelled());
@@ -299,7 +301,7 @@ class EventListener implements Listener
 	 * @param EntityDamageByEntityEvent $event
 	 */
 	public function onEntityDamage(EntityDamageByEntityEvent $event) : void {
-		if($event->getEntity() instanceof Player and $event->getDamager() instanceof Player) {
+		if($event->getEntity() instanceof Player and $event->getDamager() instanceof Player and !$event->isCancelled()) {
 			$worldName = $event->getEntity()->getWorld()->getFolderName();
 			if(!$this->plugin->isLevelLoaded($worldName)) {
 				return;
@@ -309,7 +311,6 @@ class EventListener implements Listener
 			if($plot !== null) {
 				/** @noinspection PhpParamsInspection */
 				$ev = new MyPlotPvpEvent($plot, $event->getDamager(), $event->getEntity(), $event);
-				$ev->setCancelled($event->isCancelled());
 				/** @noinspection PhpUndefinedMethodInspection */
 				if(($settings->restrictPVP or !$plot->pvp) and !$event->getDamager()->hasPermission("myplot.admin.pvp.bypass")) {
 					$ev->setCancelled();
@@ -323,7 +324,7 @@ class EventListener implements Listener
 				return;
 			}
 			/** @noinspection PhpUndefinedMethodInspection */
-			if($event->isCancelled() or $event->getDamager()->hasPermission("myplot.admin.pvp.bypass")) {
+			if($event->getDamager()->hasPermission("myplot.admin.pvp.bypass")) {
 				return;
 			}
 			if($settings->restrictPVP) {

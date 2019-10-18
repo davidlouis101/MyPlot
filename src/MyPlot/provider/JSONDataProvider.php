@@ -31,7 +31,7 @@ class JSONDataProvider extends DataProvider {
 	 */
 	public function savePlot(Plot $plot) : bool {
 		$plots = $this->json->get("plots", []);
-		$plots[$plot->id] = ["level" => $plot->levelName, "x" => $plot->X, "z" => $plot->Z, "name" => $plot->name, "owner" => $plot->owner, "helpers" => $plot->helpers, "denied" => $plot->denied, "biome" => $plot->biome];
+		$plots[$plot->id] = ["level" => $plot->levelName, "x" => $plot->X, "z" => $plot->Z, "name" => $plot->name, "owner" => $plot->owner, "helpers" => $plot->helpers, "denied" => $plot->denied, "biome" => $plot->biome, "pvp" => $plot->pvp];
 		$this->json->set("plots", $plots);
 		$this->cachePlot($plot);
 		$this->json->save();
@@ -47,6 +47,7 @@ class JSONDataProvider extends DataProvider {
 		$plots = $this->json->get("plots", []);
 		unset($plots[$plot->id]);
 		$this->json->set("plots", $plots);
+		$plot = new Plot($plot->levelName, $plot->X, $plot->Z);
 		$this->cachePlot($plot);
 		$this->json->save();
 		return true;
@@ -80,18 +81,18 @@ class JSONDataProvider extends DataProvider {
 			}
 		}
 		if($key != null) {
-			$plotName = $plots[$key]["name"] == "" ? "" : $plots[$key]["name"];
-			$owner = $plots[$key]["owner"] == "" ? "" : $plots[$key]["owner"];
-			$helpers = $plots[$key]["helpers"] == [] ? [] : $plots[$key]["helpers"];
-			$denied = $plots[$key]["denied"] == [] ? [] : $plots[$key]["denied"];
-			$biome = strtoupper($plots[$key]["biome"]) == "PLAINS" ? "PLAINS" : strtoupper($plots[$key]["biome"]);
-			$pvp = $plot[$key]["pvp"] == null ? false : $plot[$key]["pvp"];
+			$plotName = (string)$plots[$key]["name"];
+			$owner = (string)$plots[$key]["owner"];
+			$helpers = (array)$plots[$key]["helpers"];
+			$denied = (array)$plots[$key]["denied"];
+			$biome = strtoupper($plots[$key]["biome"]);
+			$pvp = $plot[$key]["pvp"];
 			return new Plot($levelName, $X, $Z, $plotName, $owner, $helpers, $denied, $biome, $pvp, $key);
 		}
 		$count = $this->json->get("count", 0);
 		$this->json->set("count", (int) $count++);
 		$this->json->save();
-		return new Plot($levelName, $X, $Z, "", "", [], [], "PLAINS", (int) $count);
+		return new Plot($levelName, $X, $Z, "", "", [], [], "PLAINS", null, (int) $count);
 	}
 
 	/**

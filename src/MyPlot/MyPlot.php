@@ -386,15 +386,15 @@ class MyPlot extends PluginBase
 	 * @return bool
 	 */
 	public function clearPlot(Plot $plot, int $maxBlocksPerTick = 256) : bool {
-		if(!$this->isLevelLoaded($plot->levelName)) {
-			return false;
-		}
 		$ev = new MyPlotClearEvent($plot, $maxBlocksPerTick);
 		$ev->call();
 		if($ev->isCancelled()) {
 			return false;
 		}
 		$plot = $ev->getPlot();
+		if(!$this->isLevelLoaded($plot->levelName)) {
+			return false;
+		}
 		$maxBlocksPerTick = $ev->getMaxBlocksPerTick();
 		foreach($this->getServer()->getWorldManager()->getWorldByName($plot->levelName)->getEntities() as $entity) {
 			if($this->getPlotBB($plot)->isVectorInXZ($entity)) {
@@ -666,8 +666,8 @@ class MyPlot extends PluginBase
 		$xMax = ($pos->x + $plotSize) >> 4;
 		$zMax = ($pos->z + $plotSize) >> 4;
 		$chunks = [];
-		for($x = $pos->x >> 4; $x < $xMax; $x++) {
-			for($z = $pos->z >> 4; $z < $zMax; $z++) {
+		for($x = $pos->x >> 4; $x <= $xMax; $x++) {
+			for($z = $pos->z >> 4; $z <= $zMax; $z++) {
 				$chunks[] = $world->getChunk($x, $z, true);
 			}
 		}
@@ -745,8 +745,7 @@ class MyPlot extends PluginBase
 	public function onLoad() : void {
 		$this->getLogger()->debug(TF::BOLD."Loading...");
 		self::$instance = $this;
-		$this->getLogger()->debug(TF::BOLD . "Loading Config");
-		$this->saveDefaultConfig();
+		$this->getLogger()->debug(TF::BOLD . "Loading Configs");
 		$this->reloadConfig();
 		@mkdir($this->getDataFolder() . "worlds");
 		$this->getLogger()->debug(TF::BOLD . "Loading MyPlot Generator");
@@ -754,33 +753,67 @@ class MyPlot extends PluginBase
 		$this->getLogger()->debug(TF::BOLD . "Loading Languages");
 		// Loading Languages
 		/** @var string $lang */
-		$lang = $this->getConfig()->get("language", Language::FALLBACK_LANGUAGE);
-		$this->baseLang = new Language($lang, $this->getFile() . "resources/");
+		$lang = $this->getConfig()->get("Language", Language::FALLBACK_LANGUAGE);
+		if($this->getConfig()->get("Custom Messages", false)) {
+			if(!file_exists($this->getDataFolder()."lang.ini")) {
+				$resource = $this->getResource($lang.".ini") ?? file_get_contents($this->getFile()."resources/".BaseLang::FALLBACK_LANGUAGE.".ini");
+				file_put_contents($this->getDataFolder()."lang.ini", $resource);
+				if(!is_string($resource)) {
+					fclose($resource);
+				}
+				$this->saveResource(Language::FALLBACK_LANGUAGE.".ini", true);
+				$this->getLogger()->debug("Custom Language ini created");
+			}
+			$this->baseLang = new Language("lang", $this->getDataFolder());
+		}else{
+			if(file_exists($this->getDataFolder()."lang.ini")) {
+				unlink($this->getDataFolder()."lang.ini");
+				unlink($this->getDataFolder().Language::FALLBACK_LANGUAGE.".ini");
+				$this->getLogger()->debug("Custom Language ini deleted");
+			}
+			$this->baseLang = new Language($lang, $this->getFile() . "resources/");
+		}
 		$this->getLogger()->debug(TF::BOLD . "Loading Data Provider settings");
 		// Initialize DataProvider
 		/** @var int $cacheSize */
 		$cacheSize = $this->getConfig()->get("PlotCacheSize", 256);
 		switch(strtolower($this->getConfig()->get("DataProvider", "sqlite3"))) {
+			case "mysqli":
 			case "mysql":
 				if(extension_loaded("mysqli")) {
 					$settings = $this->getConfig()->get("MySQLSettings");
 					$this->dataProvider = new MySQLProvider($this, $cacheSize, $settings);
 				}else {
-					$this->getLogger()->info("MySQLi is not installed in your php build! SQLite3 will be used instead.");
-					$this->dataProvider = new SQLiteDataProvider($this, $cacheSize);
+					$this->getLogger()->info("MySQLi is not installed in your php build! JSON will be used instead.");
+					$this->dataProvider = new JSONDataProvider($this, $cacheSize);
 				}
 			break;
 			case "yaml":
-				$this->dataProvider = new YAMLDataProvider($this, $cacheSize);
-			break;
-			case "json":
-				$this->dataProvider = new JSONDataProvider($this, $cacheSize);
+				if(extension_loaded("yaml")) {
+					$this->dataProvider = new YAMLDataProvider($this, $cacheSize);
+				}else {
+					$this->getLogger()->info("YAML is not installed in your php build! JSON will be used instead.");
+					$this->dataProvider = new JSONDataProvider($this, $cacheSize);
+				}
 			break;
 			case "sqlite3":
 			case "sqlite":
-			default:
-				$this->dataProvider = new SQLiteDataProvider($this, $cacheSize);
+				if(extension_loaded("sqlite3")) {
+					$this->dataProvider = new SQLiteDataProvider($this, $cacheSize);
+				}else {
+					$this->getLogger()->info("SQLite3 is not installed in your php build! JSON will be used instead.");
+					$this->dataProvider = new JSONDataProvider($this, $cacheSize);
+				}
 			break;
+			case "json":
+			default:
+				$this->dataProvider = new JSONDataProvider($this, $cacheSize);
+			break;
+		}
+		$this->getLogger()->debug(TF::BOLD . "Loading Plot Clearing settings");
+		if($this->getConfig()->get("FastClearing", false) and $this->getServer()->getPluginManager()->getplugin("WorldStyler") === null) {
+			$this->getConfig()->set("FastClearing", false);
+			$this->getLogger()->info(TF::BOLD . "WorldStyler not found. Legacy clearing will be used.");
 		}
 		$this->getLogger()->debug(TF::BOLD . "Loading MyPlot Commands");
 		// Register command
@@ -799,21 +832,21 @@ class MyPlot extends PluginBase
 				if($plugin instanceof EconomyAPI) {
 					$this->economyProvider = new EconomySProvider($plugin);
 					$this->getLogger()->debug("Eco set to EconomySProvider");
-				}
+				}else
 				$this->getLogger()->debug("Eco not instance of EconomyAPI");
 			}
 			elseif(($plugin = $this->getServer()->getPluginManager()->getPlugin("EssentialsPE")) !== null) {
 				if($plugin instanceof Loader) {
 					$this->economyProvider = new EssentialsPEProvider($plugin);
 					$this->getLogger()->debug("Eco set to EssentialsPE");
-				}
+				}else
 				$this->getLogger()->debug("Eco not instance of EssentialsPE");
 			}
 			elseif(($plugin = $this->getServer()->getPluginManager()->getPlugin("PocketMoney")) !== null) {
 				if($plugin instanceof PocketMoney) {
 					$this->economyProvider = new PocketMoneyProvider($plugin);
 					$this->getLogger()->debug("Eco set to PocketMoney");
-				}
+				}else
 				$this->getLogger()->debug("Eco not instance of PocketMoney");
 			}
 			if(!isset($this->economyProvider)) {

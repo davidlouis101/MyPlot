@@ -4,6 +4,7 @@ namespace MyPlot\provider;
 
 use MyPlot\MyPlot;
 use MyPlot\Plot;
+use pocketmine\Server;
 
 class MySQLProvider extends DataProvider {
 	/** @var MyPlot $plugin */
@@ -74,10 +75,10 @@ class MySQLProvider extends DataProvider {
 	public function deletePlot(Plot $plot) : bool {
 		$this->reconnect();
 		if($plot->id >= 0) {
-			$stmt = $this->sqlRemovePlot;
+			$stmt = $this->sqlRemovePlotById;
 			$stmt->bind_param('i', $plot->id);
 		}else{
-			$stmt = $this->sqlRemovePlotById;
+			$stmt = $this->sqlRemovePlot;
 			$stmt->bind_param('sii', $plot->levelName, $plot->X, $plot->Z);
 		}
 		$result = $stmt->execute();
@@ -121,7 +122,8 @@ class MySQLProvider extends DataProvider {
 			}else{
 				$denied = explode(",", (string) $val["denied"]);
 			}
-			$plot = new Plot($levelName, $X, $Z, (string) $val["name"], (string) $val["owner"], $helpers, $denied, (string) $val["biome"], (bool) $val["pvp"], (int) $val["id"]);
+			$pvp = is_numeric($val["pvp"]) ? (bool)$val["pvp"] : null;
+			$plot = new Plot($levelName, $X, $Z, (string) $val["name"], (string) $val["owner"], $helpers, $denied, (string) $val["biome"], $pvp, (int) $val["id"]);
 		}else{
 			$plot = new Plot($levelName, $X, $Z);
 		}
@@ -154,7 +156,8 @@ class MySQLProvider extends DataProvider {
 		while($val = $result->fetch_array()) {
 			$helpers = explode(",", (string) $val["helpers"]);
 			$denied = explode(",", (string) $val["denied"]);
-			$plots[] = new Plot((string) $val["level"], (int) $val["X"], (int) $val["Z"], (string) $val["name"], (string) $val["owner"], $helpers, $denied, (string) $val["biome"], (bool) $val["pvp"], (int) $val["id"]);
+			$pvp = is_numeric($val["pvp"]) ? (bool)$val["pvp"] : null;
+			$plots[] = new Plot((string) $val["level"], (int) $val["X"], (int) $val["Z"], (string) $val["name"], (string) $val["owner"], $helpers, $denied, (string) $val["biome"], $pvp, (int) $val["id"]);
 		}
 		// Remove unloaded plots
 		$plots = array_filter($plots, function($plot) {
@@ -247,15 +250,14 @@ class MySQLProvider extends DataProvider {
 				return false;
 			}
 		}
-		return true;
 	}
 
 	private function prepare() : void {
-		$this->sqlGetPlot = $this->db->prepare("SELECT id, name, owner, helpers, denied, biome FROM plots WHERE level = ? AND X = ? AND Z = ?;");
+		$this->sqlGetPlot = $this->db->prepare("SELECT id, name, owner, helpers, denied, biome, pvp FROM plots WHERE level = ? AND X = ? AND Z = ?;");
 		$this->sqlSavePlot = $this->db->prepare("INSERT INTO plots (`id`, `level`, `X`, `Z`, `name`, `owner`, `helpers`, `denied`, `biome`, `pvp`) VALUES((SELECT id FROM plots p WHERE p.level = ? AND X = ? AND Z = ?),?,?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE name = VALUES(name), owner = VALUES(owner), helpers = VALUES(helpers), denied = VALUES(denied), biome = VALUES(biome), pvp = VALUES(pvp);");
 		$this->sqlSavePlotById = $this->db->prepare("UPDATE plots SET id = ?, level = ?, X = ?, Z = ?, name = ?, owner = ?, helpers = ?, denied = ?, biome = ?, pvp = ? WHERE id = VALUES(id);");
-		$this->sqlRemovePlot = $this->db->prepare("DELETE FROM plots WHERE id = ?;");
-		$this->sqlRemovePlotById = $this->db->prepare("DELETE FROM plots WHERE level = ? AND X = ? AND Z = ?;");
+		$this->sqlRemovePlotById = $this->db->prepare("DELETE FROM plots WHERE id = ?;");
+		$this->sqlRemovePlot = $this->db->prepare("DELETE FROM plots WHERE level = ? AND X = ? AND Z = ?;");
 		$this->sqlGetPlotsByOwner = $this->db->prepare("SELECT * FROM plots WHERE owner = ?;");
 		$this->sqlGetPlotsByOwnerAndLevel = $this->db->prepare("SELECT * FROM plots WHERE owner = ? AND level = ?;");
 		$this->sqlGetExistingXZ = $this->db->prepare("SELECT X, Z FROM plots WHERE (level = ? AND ((abs(X) = ? AND abs(Z) <= ?) OR (abs(Z) = ? AND abs(X) <= ?)));");
