@@ -18,4 +18,4 @@ Want to help create language packs? If you know a language that is not created y
 
 ###### *NOTE:* MyPlot is designed to only support pmmp's version of the PocketMine-MP server software and will not work with third party builds. Any changes to the code in custom installations will not be supported. This includes removing SpoonDetector.
 
-**YT : Brawl King
+**YT : Brawl King**
